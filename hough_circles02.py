@@ -82,8 +82,8 @@ while(success):
   if(img is None):
     continue
   img = cell_detect(img)
-  if(count > 10):
-    quit()
+  # if(count > 10):
+  #   quit()
 
 # plt.imshow(img, cmap = "gray")
 # plt.title("Frame 10 Circles"), plt.xticks([]), plt.yticks([])
