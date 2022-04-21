@@ -11,7 +11,7 @@ def cell_detect(image):
   # manipulate image
   orig_image = image.copy()
   sharpening_kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-  image = cv2.filter2D(image[:, 766:838], -1, sharpening_kernel)
+  image = cv2.filter2D(image[:, left_tube_wall:right_tube_wall], -1, sharpening_kernel)
   blood_cells = np.uint8(image.copy())
   gray_image = np.uint8(cv2.cvtColor(np.float32(image), cv2.COLOR_BGR2GRAY))
   
@@ -20,7 +20,7 @@ def cell_detect(image):
   if(circles is None):
     return orig_image
   circles = np.concatenate((circles, [[[0]]*circles.shape[1]]), axis = 2)
-  distances = np.linalg.norm(circles[0, :, :2] - circles[0, :, :2][:, None], axis = -1)
+  distances = np.linalg.norm(circles[0, :, :2] - circles[0, :, :2][:, np.newaxis], axis = -1)
   
   # identify clumps
   threshold = 15
@@ -52,17 +52,27 @@ def cell_detect(image):
     cv2.circle(blood_cells, (x, y), r, color, 1)
   
   # update image with detected circles
-  orig_image[:, 766:838] = blood_cells
+  orig_image[:, left_tube_wall:right_tube_wall] = blood_cells
   return orig_image
 
 # input mp4 file
 vidcap = cv2.VideoCapture("dextran_v01.mp4")
 success, img = vidcap.read()
+
+# detect tube inner wall indices
+# tube width normalized to 72
+img_brt = np.mean(img, axis = (0, 2))
+img_brt = np.where(img_brt <= 88)[0]
+wall_ind = np.where(img_brt[1:] - img_brt[:-1] > 50)[0][1]
+right_tube_wall = (img_brt[wall_ind] + img_brt[wall_ind + 1])//2 + 37
+left_tube_wall = right_tube_wall - 72
+
+# begin cell detection
 img = cell_detect(img)
 
 # create frames
 count = 0
-while success:
+while(success):
   # output current frame with blood cell detection
   cv2.imwrite("frame" + str(count).zfill(3) + ".jpg", img)
   
@@ -72,8 +82,8 @@ while success:
   if(img is None):
     continue
   img = cell_detect(img)
-  # if(count > 10):
-  #   quit()
+  if(count > 10):
+    quit()
 
 # plt.imshow(img, cmap = "gray")
 # plt.title("Frame 10 Circles"), plt.xticks([]), plt.yticks([])
