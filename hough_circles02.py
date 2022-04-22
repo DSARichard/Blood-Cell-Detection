@@ -6,8 +6,26 @@ import os
 
 # https://pyimagesearch.com/2014/07/21/detecting-circles-images-using-opencv-hough-circles/
 
+# detect optical flow
+def flow_detect(prev_image, next_image, output_image = False):
+  # calculate dense optical flow
+  flow = cv2.calcOpticalFlowFarneback(prev_image, next_image, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+  
+  # convert to color image if specified
+  if(output_image):
+    mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+    hsv = np.zeros_like(img[:, left_tube_wall:right_tube_wall])
+    hsv[..., 1] = 255
+    hsv[..., 0] = ang*90/np.pi
+    hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
+    flow_image = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    return flow_image
+  
+  # otherwise return detect flow
+  return flow
+
 # blood cell detection
-def cell_detect(image):
+def cell_detect(image, flow = None):
   # manipulate image
   orig_image = image.copy()
   sharpening_kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
@@ -19,37 +37,40 @@ def cell_detect(image):
   circles = cv2.HoughCircles(gray_image, cv2.HOUGH_GRADIENT, 1.05, 5, param2 = 8.5, minRadius = 1, maxRadius = 7)
   if(circles is None):
     return orig_image
-  circles = np.concatenate((circles, [[[0]]*circles.shape[1]]), axis = 2)
+  circles = np.concatenate((circles, np.zeros((1, circles.shape[1], 1), int)), axis = -1)
   distances = np.linalg.norm(circles[0, :, :2] - circles[0, :, :2][:, np.newaxis], axis = -1)
   
-  # identify clumps
+  # determine optical flow for centers of detected circles
+  if(flow is not None):
+    circle_centers = np.int_(np.round(circles[0][:, :2])).T
+    circle_flow = flow[np.clip(circle_centers[1], 0, 719), np.clip(circle_centers[0], 0, 71)]
+  else:
+    circle_flow = np.zeros((circles.shape[1], 2))
+  
+  # identify circles in clumps: in a continuum from 0 to 511
+  # evaluation based on circle–circle distance and alignment of flow direction
   threshold = 15
   for i in range(distances.shape[0]):
     close = 0
     for j in range(distances.shape[1]):
-      if(distances[i, j] == 0):
-        continue
-      if(distances[i, j] <= threshold):
-        close += 1
-    if(close >= 3):
-      circles[0, i, -1] = 1
+      if(0 < distances[i, j] <= threshold):
+        flow_dist = np.linalg.norm(circle_flow[i] - circle_flow[j])
+        close += 3*(1 - np.tanh(flow_dist))
+    circles[0, i, -1] = np.clip(close, 0, 7)*73
+  
+  # evaluation based on previous evaluations of nearby circles
   for i in range(distances.shape[0]):
     close = 0
     for j in range(distances.shape[1]):
-      if(distances[i, j] == 0):
-        continue
-      if(distances[i, j] <= threshold and circles[0, j, -1] == 1):
-        close += 1
-    if(close >= 1):
-      circles[0, i, -1] = 1
-    else:
-      circles[0, i, -1] = 0
+      if(0 < distances[i, j] <= threshold):
+        close += circles[0, j, -1]
+    circles[0, i, -1] = np.clip(close, 0, 657)*7/9
   
-  # draw circles -- circles in clumps are red, otherwise green
+  # draw circles — circles in clumps are red, green if not, yellow if uncertain
   circles = np.int_(np.round(circles[0, :]))
   for x, y, r, clumped in circles:
-    color = (0, 0, 255) if(clumped) else (0, 255, 0)
-    cv2.circle(blood_cells, (x, y), r, color, 1)
+    color = (0, int(min(511 - clumped, 255)), int(min(clumped, 255)))
+    cv2.circle(blood_cells, (x, y), r, color, -1)
   
   # update image with detected circles
   orig_image[:, left_tube_wall:right_tube_wall] = blood_cells
@@ -59,7 +80,7 @@ def cell_detect(image):
 vidcap = cv2.VideoCapture("dextran_v01.mp4")
 success, img = vidcap.read()
 
-# detect tube inner wall indices
+# detect tube inner wall indices based on brightness
 # tube width normalized to 72
 img_brt = np.mean(img, axis = (0, 2))
 img_brt = np.where(img_brt <= 88)[0]
@@ -69,6 +90,7 @@ left_tube_wall = right_tube_wall - 72
 
 # begin cell detection
 img = cell_detect(img)
+prev_img = cv2.cvtColor(np.float32(img[:, left_tube_wall:right_tube_wall]), cv2.COLOR_BGR2GRAY)
 
 # create frames
 count = 0
@@ -81,7 +103,13 @@ while(success):
   count += 1
   if(img is None):
     continue
-  img = cell_detect(img)
+  
+  # detect flow between current and previous frame with optical flow detection
+  next_img = cv2.cvtColor(np.float32(img[:, left_tube_wall:right_tube_wall]), cv2.COLOR_BGR2GRAY)
+  flow = flow_detect(prev_img, next_img)
+  
+  # move on to next frame
+  img = cell_detect(img, flow)
   # if(count > 10):
   #   quit()
 
@@ -92,7 +120,7 @@ while(success):
 frames = count
 
 # create video
-name = "dextran_v02c_detect_clumps.mp4"
+name = "dextran_v02d_detect_clumps.mp4"
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 out = cv2.VideoWriter(name, fourcc, 60.0, (1280, 720))
 
