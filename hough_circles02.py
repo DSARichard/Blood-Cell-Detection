@@ -166,7 +166,8 @@ while(success):
 frames = count
 
 # create video
-name = "dextran_v02e_detect_clumps.mp4"
+version = "02e" if(highlight_flow) else "02d"
+name = f"dextran_v{version}_detect_clumps.mp4"
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 out = cv2.VideoWriter(name, fourcc, 60.0, (1280, 720))
 
