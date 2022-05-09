@@ -69,11 +69,11 @@ def cell_detect(image, flow = None, flow_clumps = None):
   if(circles is None):
     return orig_image
   circles = np.concatenate((circles, np.zeros((1, circles.shape[1], 1), int)), axis = -1)
-  distances = np.linalg.norm(circles[0, :, :2] - circles[0, :, :2][:, np.newaxis], axis = -1)
+  distances = np.linalg.norm(circles[0, :, :2] - circles[0, :, :2, :, np.newaxis], axis = -1)
   
   # determine optical flow for centers of detected circles
   if(flow is not None):
-    circle_centers = np.int_(np.round(circles[0][:, :2])).T
+    circle_centers = np.int_(np.round(circles[0, :, :2])).T
     circle_flow = flow[np.clip(circle_centers[1], 0, 719), np.clip(circle_centers[0], 0, 71)]
   else:
     circle_flow = np.zeros((circles.shape[1], 2))
@@ -119,7 +119,7 @@ success, img = vidcap.read()
 # tube width normalized to 72
 img_brt = np.mean(img, axis = (0, 2))
 img_brt = np.where(img_brt <= 88)[0]
-wall_ind = np.where(img_brt[1:] - img_brt[:-1] > 50)[0][1]
+wall_ind = np.where(img_brt[1:] - img_brt[:-1] > 50)[0, [1]
 right_tube_wall = (img_brt[wall_ind] + img_brt[wall_ind + 1])//2 + 37
 left_tube_wall = right_tube_wall - 72
 
@@ -156,8 +156,8 @@ while(success):
   
   # move on to next frame
   img = cell_detect(img, flow, flow_img)
-  # if(count > 10):
-  #   quit()
+  if(count > 10):
+    quit()
 
 # plt.imshow(img, cmap = "gray")
 # plt.title("Frame"), plt.xticks([]), plt.yticks([])
