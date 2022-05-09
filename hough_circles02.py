@@ -69,7 +69,7 @@ def cell_detect(image, flow = None, flow_clumps = None):
   if(circles is None):
     return orig_image
   circles = np.concatenate((circles, np.zeros((1, circles.shape[1], 1), int)), axis = -1)
-  distances = np.linalg.norm(circles[0, :, :2] - circles[0, :, :2, :, np.newaxis], axis = -1)
+  distances = np.linalg.norm(circles[0, :, :2] - circles[0, :, :2][:, np.newaxis], axis = -1)
   
   # determine optical flow for centers of detected circles
   if(flow is not None):
