@@ -119,7 +119,7 @@ success, img = vidcap.read()
 # tube width normalized to 72
 img_brt = np.mean(img, axis = (0, 2))
 img_brt = np.where(img_brt <= 88)[0]
-wall_ind = np.where(img_brt[1:] - img_brt[:-1] > 50)[0, [1]
+wall_ind = np.where(img_brt[1:] - img_brt[:-1] > 50)[0][1]
 right_tube_wall = (img_brt[wall_ind] + img_brt[wall_ind + 1])//2 + 37
 left_tube_wall = right_tube_wall - 72
 
